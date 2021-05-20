@@ -23,11 +23,11 @@
     <groupId>org.apache.livy</groupId>
     <artifactId>multi-scala-project-root</artifactId>
     <relativePath>../scala/pom.xml</relativePath>
-    <version>0.8.0-incubating-SNAPSHOT</version>
+    <version>0.7.0-incubating</version>
   </parent>
 
   <artifactId>livy-repl-parent</artifactId>
-  <version>0.8.0-incubating-SNAPSHOT</version>
+  <version>0.7.0-incubating</version>
   <packaging>pom</packaging>
 
   <dependencies>
@@ -175,7 +175,6 @@
                   <include>org.json4s:json4s-ast_${scala.binary.version}</include>
                   <include>org.json4s:json4s-core_${scala.binary.version}</include>
                   <include>org.json4s:json4s-jackson_${scala.binary.version}</include>
-                  <include>org.json4s:json4s-scalap_${scala.binary.version}</include>
                 </includes>
               </artifactSet>
               <filters>
@@ -212,8 +211,6 @@
                 json4s-ast_${scala.binary.version},
                 json4s-core_${scala.binary.version},
                 json4s-jackson_${scala.binary.version},
-                json4s-scalap_${scala.binary.version},
-                scala-xml_${scala.binary.version},
                 paranamer,
                 scalap
               </excludeArtifactIds>

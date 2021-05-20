@@ -27,15 +27,10 @@ import scala.util.{Either, Left, Right}
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import com.ning.http.client.AsyncHttpClient
+import com.ning.http.client.Response
 import org.apache.hadoop.yarn.api.records.ApplicationId
 import org.apache.hadoop.yarn.util.ConverterUtils
-import org.apache.http.client.methods.HttpDelete
-import org.apache.http.client.methods.HttpGet
-import org.apache.http.client.methods.HttpPost
-import org.apache.http.entity.StringEntity
-import org.apache.http.impl.client.CloseableHttpClient
-import org.apache.http.HttpResponse
-import org.apache.http.StatusLine
 import org.scalatest.concurrent.Eventually._
 
 import org.apache.livy.server.batch.CreateBatchRequest
@@ -65,7 +60,7 @@ object LivyRestClient {
     log: IndexedSeq[String])
 }
 
-class LivyRestClient(val httpClient: CloseableHttpClient, val livyEndpoint: String) {
+class LivyRestClient(val httpClient: AsyncHttpClient, val livyEndpoint: String) {
   import LivyRestClient._
 
   val mapper = new ObjectMapper()
@@ -80,21 +75,14 @@ class LivyRestClient(val httpClient: CloseableHttpClient, val livyEndpoint: Stri
     }
 
     def snapshot(): SessionSnapshot = {
-      val httpGet = new HttpGet(url)
-      val r = httpClient.execute(httpGet)
-      val statusLine = r.getStatusLine()
-      val responseBody = r.getEntity().getContent
-      val sessionSnapshot = mapper.readValue(responseBody, classOf[SessionSnapshot])
-      r.close()
+      val r = httpClient.prepareGet(url).execute().get()
+      assertStatusCode(r, HttpServletResponse.SC_OK)
 
-      assertStatusCode(statusLine, HttpServletResponse.SC_OK)
-      sessionSnapshot
+      mapper.readValue(r.getResponseBodyAsStream, classOf[SessionSnapshot])
     }
 
     def stop(): Unit = {
-      val httpDelete = new HttpDelete(url)
-      val r = httpClient.execute(httpDelete)
-      r.close()
+      httpClient.prepareDelete(url).execute().get()
 
       eventually(timeout(30 seconds), interval(1 second)) {
         verifySessionDoesNotExist()
@@ -117,12 +105,8 @@ class LivyRestClient(val httpClient: CloseableHttpClient, val livyEndpoint: Stri
     }
 
     def verifySessionDoesNotExist(): Unit = {
-      val httpGet = new HttpGet(url)
-      val r = httpClient.execute(httpGet)
-      val statusLine = r.getStatusLine()
-      r.close()
-
-      assertStatusCode(statusLine, HttpServletResponse.SC_NOT_FOUND)
+      val r = httpClient.prepareGet(url).execute().get()
+      assertStatusCode(r, HttpServletResponse.SC_NOT_FOUND)
     }
   }
 
@@ -141,30 +125,24 @@ class LivyRestClient(val httpClient: CloseableHttpClient, val livyEndpoint: Stri
         } else {
           Map("code" -> code)
         }
-        val httpPost = new HttpPost(s"$url/statements")
-        val entity = new StringEntity(mapper.writeValueAsString(requestBody))
-        httpPost.setEntity(entity)
+        val r = httpClient.preparePost(s"$url/statements")
+          .setBody(mapper.writeValueAsString(requestBody))
+          .execute()
+          .get()
+        assertStatusCode(r, HttpServletResponse.SC_CREATED)
 
-        val r = httpClient.execute(httpPost)
-        val statusLine = r.getStatusLine()
-        val responseBody = r.getEntity().getContent
-        val newStmt = mapper.readValue(responseBody, classOf[StatementResult])
-        r.close()
-
-        assertStatusCode(statusLine, HttpServletResponse.SC_CREATED)
+        val newStmt = mapper.readValue(r.getResponseBodyAsStream, classOf[StatementResult])
         newStmt.id
       }
 
       final def result(): Either[String, StatementError] = {
         eventually(timeout(1 minute), interval(1 second)) {
-          val httpGet = new HttpGet(s"$url/statements/$stmtId")
-          val r = httpClient.execute(httpGet)
-          val statusLine = r.getStatusLine()
-          val responseBody = r.getEntity().getContent
-          val newStmt = mapper.readValue(responseBody, classOf[StatementResult])
-          r.close()
+          val r = httpClient.prepareGet(s"$url/statements/$stmtId")
+            .execute()
+            .get()
+          assertStatusCode(r, HttpServletResponse.SC_OK)
 
-          assertStatusCode(statusLine, HttpServletResponse.SC_OK)
+          val newStmt = mapper.readValue(r.getResponseBodyAsStream, classOf[StatementResult])
           assert(newStmt.state == "available", s"Statement isn't available: ${newStmt.state}")
 
           val output = newStmt.output
@@ -223,24 +201,20 @@ class LivyRestClient(val httpClient: CloseableHttpClient, val livyEndpoint: Stri
     class Completion(code: String, kind: String, cursor: Int) {
       val completions = {
         val requestBody = Map("code" -> code, "cursor" -> cursor, "kind" -> kind)
-        val httpPost = new HttpPost(s"$url/completion")
-        val entity = new StringEntity(mapper.writeValueAsString(requestBody))
-        httpPost.setEntity(entity)
+        val r = httpClient.preparePost(s"$url/completion")
+          .setBody(mapper.writeValueAsString(requestBody))
+          .execute()
+          .get()
+        assertStatusCode(r, HttpServletResponse.SC_OK)
 
-        val r = httpClient.execute(httpPost)
-        val statusLine = r.getStatusLine()
-        val responseBody = r.getEntity().getContent
-        val res = mapper.readValue(responseBody, classOf[CompletionResult])
-        r.close()
-
-        assertStatusCode(statusLine, HttpServletResponse.SC_OK)
+        val res = mapper.readValue(r.getResponseBodyAsStream, classOf[CompletionResult])
         res.candidates
       }
 
       final def result(): Seq[String] = completions
 
       def verifyContaining(expected: List[String]): Unit = {
-        assert(expected.forall(result().toList.contains), s"Expected $expected in $result()")
+        assert(result().toSet.forall(x => expected.contains(x)))
       }
 
       def verifyNone(): Unit = {
@@ -258,11 +232,9 @@ class LivyRestClient(val httpClient: CloseableHttpClient, val livyEndpoint: Stri
 
     def runFatalStatement(code: String): Unit = {
       val requestBody = Map("code" -> code)
-      val requestEntity = new StringEntity(mapper.writeValueAsString(requestBody))
-      val httpPost = new HttpPost(s"$url/statements")
-      httpPost.setEntity(requestEntity)
-      val r = httpClient.execute(httpPost)
-      r.close()
+      val r = httpClient.preparePost(s"$url/statements")
+        .setBody(mapper.writeValueAsString(requestBody))
+        .execute()
 
       verifySessionState(SessionState.Dead())
     }
@@ -311,23 +283,20 @@ class LivyRestClient(val httpClient: CloseableHttpClient, val livyEndpoint: Stri
   def connectSession(id: Int): InteractiveSession = { new InteractiveSession(id) }
 
   private def start(sessionType: String, body: String): Int = {
-    val httpPost = new HttpPost(s"$livyEndpoint/$sessionType")
-    val entity = new StringEntity(body)
-    httpPost.setEntity(entity)
+    val r = httpClient.preparePost(s"$livyEndpoint/$sessionType")
+      .setBody(body)
+      .execute()
+      .get()
 
-    val r = httpClient.execute(httpPost)
-    val statusLine = r.getStatusLine()
-    val responseBody = r.getEntity().getContent
-    val newSession = mapper.readValue(responseBody, classOf[SessionSnapshot])
-    r.close()
+    assertStatusCode(r, HttpServletResponse.SC_CREATED)
 
-    assertStatusCode(statusLine, HttpServletResponse.SC_CREATED)
+    val newSession = mapper.readValue(r.getResponseBodyAsStream, classOf[SessionSnapshot])
     newSession.id
   }
 
-  private def assertStatusCode(r: StatusLine, expected: Int): Unit = {
-    def pretty(r: StatusLine): String = {
-      s"${r.getStatusCode} ${r.getReasonPhrase}"
+  private def assertStatusCode(r: Response, expected: Int): Unit = {
+    def pretty(r: Response): String = {
+      s"${r.getStatusCode} ${r.getResponseBody}"
     }
     assert(r.getStatusCode() == expected, s"HTTP status code != $expected: ${pretty(r)}")
   }

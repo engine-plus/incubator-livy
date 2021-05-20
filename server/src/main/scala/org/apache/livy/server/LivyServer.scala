@@ -39,12 +39,12 @@ import org.apache.livy._
 import org.apache.livy.server.auth.LdapAuthenticationHandlerImpl
 import org.apache.livy.server.batch.BatchSessionServlet
 import org.apache.livy.server.interactive.InteractiveSessionServlet
-import org.apache.livy.server.recovery.{SessionStore, StateStore, ZooKeeperManager}
+import org.apache.livy.server.recovery.{SessionStore, StateStore}
 import org.apache.livy.server.ui.UIServlet
 import org.apache.livy.sessions.{BatchSessionManager, InteractiveSessionManager}
 import org.apache.livy.sessions.SessionManager.SESSION_RECOVERY_MODE_OFF
+import org.apache.livy.utils.{SparkKubernetesApp, SparkYarnApp}
 import org.apache.livy.utils.LivySparkUtils._
-import org.apache.livy.utils.SparkYarnApp
 
 class LivyServer extends Logging {
 
@@ -59,8 +59,6 @@ class LivyServer extends Logging {
   private var executor: ScheduledExecutorService = _
   private var accessManager: AccessManager = _
   private var _thriftServerFactory: Option[ThriftServerFactory] = None
-
-  private var zkManager: Option[ZooKeeperManager] = None
 
   private var ugi: UserGroupInformation = _
 
@@ -142,18 +140,16 @@ class LivyServer extends Logging {
 
     testRecovery(livyConf)
 
-    // Initialize YarnClient ASAP to save time.
+    // Initialize YarnClient/KubernetesClient ASAP to save time.
     if (livyConf.isRunningOnYarn()) {
       SparkYarnApp.init(livyConf)
       Future { SparkYarnApp.yarnClient }
+    } else if (livyConf.isRunningOnKubernetes()) {
+      SparkKubernetesApp.init(livyConf)
+      Future { SparkKubernetesApp.kubernetesClient }
     }
 
-    if (livyConf.get(LivyConf.RECOVERY_STATE_STORE) == "zookeeper") {
-      zkManager = Some(new ZooKeeperManager(livyConf))
-      zkManager.foreach(_.start())
-    }
-
-    StateStore.init(livyConf, zkManager)
+    StateStore.init(livyConf)
     val sessionStore = new SessionStore(livyConf)
     val batchSessionManager = new BatchSessionManager(livyConf, sessionStore)
     val interactiveSessionManager = new InteractiveSessionManager(livyConf, sessionStore)
@@ -330,7 +326,6 @@ class LivyServer extends Logging {
     Runtime.getRuntime().addShutdownHook(new Thread("Livy Server Shutdown") {
       override def run(): Unit = {
         info("Shutting down Livy server.")
-        zkManager.foreach(_.stop())
         server.stop()
         _thriftServerFactory.foreach(_.stop())
       }
@@ -415,10 +410,10 @@ class LivyServer extends Logging {
   }
 
   private[livy] def testRecovery(livyConf: LivyConf): Unit = {
-    if (!livyConf.isRunningOnYarn()) {
-      // If recovery is turned on but we are not running on YARN, quit.
+    if (!livyConf.isRunningOnYarn() && !livyConf.isRunningOnKubernetes()) {
+      // If recovery is turned on but we are not running on YARN or Kubernetes, quit.
       require(livyConf.get(LivyConf.RECOVERY_MODE) == SESSION_RECOVERY_MODE_OFF,
-        "Session recovery requires YARN.")
+        s"Session recovery requires YARN or Kubernetes.")
     }
   }
 }

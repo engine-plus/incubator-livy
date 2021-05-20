@@ -20,12 +20,12 @@
   <parent>
     <groupId>org.apache.livy</groupId>
     <artifactId>livy-main</artifactId>
-    <version>0.8.0-incubating-SNAPSHOT</version>
+    <version>0.7.0-incubating</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
   <artifactId>livy-assembly</artifactId>
-  <version>0.8.0-incubating-SNAPSHOT</version>
+  <version>0.7.0-incubating</version>
   <packaging>pom</packaging>
 
   <properties>
@@ -38,12 +38,6 @@
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>livy-rsc</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-
-    <dependency>
-      <groupId>${project.groupId}</groupId>
-      <artifactId>livy-repl_2.11</artifactId>
       <version>${project.version}</version>
     </dependency>
 
@@ -81,23 +75,6 @@
           </execution>
         </executions>
       </plugin>
-
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <configuration>
-          <skipTests>true</skipTests>
-        </configuration>
-      </plugin>
-
-      <plugin>
-        <groupId>org.scalatest</groupId>
-        <artifactId>scalatest-maven-plugin</artifactId>
-        <configuration>
-          <skipTests>true</skipTests>
-        </configuration>
-      </plugin>
-
     </plugins>
   </build>
 

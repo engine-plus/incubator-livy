@@ -31,7 +31,7 @@ import org.mockito.Matchers._
 import org.mockito.Mockito.{atLeastOnce, verify, when}
 import org.scalatest.{BeforeAndAfterAll, FunSpec, Matchers}
 import org.scalatest.concurrent.Eventually._
-import org.scalatestplus.mockito.MockitoSugar.mock
+import org.scalatest.mock.MockitoSugar.mock
 
 import org.apache.livy.{ExecuteRequest, JobHandle, LivyBaseUnitTestSuite, LivyConf}
 import org.apache.livy.rsc.{PingJob, RSCClient, RSCConf}
@@ -107,7 +107,7 @@ class InteractiveSessionSpec extends FunSpec
       val testedJars = Seq(
         "test_2.10-0.1.jar",
         "local://dummy-path/test/test1_2.10-1.0.jar",
-        "file:///dummy-path/test/test2_2.11-1.0-SNAPSHOT.jar",
+        "file:///dummy-path/test/test2_2.12-1.0-SNAPSHOT.jar",
         "hdfs:///dummy-path/test/test3.jar",
         "non-jar",
         "dummy.jar"
@@ -122,10 +122,10 @@ class InteractiveSessionSpec extends FunSpec
         "hdfs:///dummy-path/test/test3.jar",
         "dummy.jar"))
 
-      livyConf.set(LivyConf.LIVY_SPARK_SCALA_VERSION, "2.11")
+      livyConf.set(LivyConf.LIVY_SPARK_SCALA_VERSION, "2.12")
       val properties1 = InteractiveSession.prepareBuilderProp(Map.empty, Spark, livyConf)
       assert(properties1(LivyConf.SPARK_JARS).split(",").toSet === Set(
-        "file:///dummy-path/test/test2_2.11-1.0-SNAPSHOT.jar",
+        "file:///dummy-path/test/test2_2.12-1.0-SNAPSHOT.jar",
         "hdfs:///dummy-path/test/test3.jar",
         "dummy.jar"))
     }

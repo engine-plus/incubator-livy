@@ -94,11 +94,6 @@ class LivyConnection {
       public boolean isContentCompressionEnabled() {
         return config.getBoolean(CONTENT_COMPRESS_ENABLE);
       }
-
-      @Override
-      public boolean isExpectContinueEnabled() {
-        return true;
-      }
     };
 
     Credentials credentials;

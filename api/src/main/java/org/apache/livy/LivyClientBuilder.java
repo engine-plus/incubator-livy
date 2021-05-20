@@ -23,8 +23,6 @@ import java.io.Reader;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.ServiceLoader;
@@ -36,19 +34,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 public final class LivyClientBuilder {
 
   public static final String LIVY_URI_KEY = "livy.uri";
-
-  private static final ServiceLoader<LivyClientFactory> CLIENT_FACTORY_LOADER =
-    ServiceLoader.load(LivyClientFactory.class, classLoader());
-
-  private static List<LivyClientFactory> getLivyClientFactories() {
-    List<LivyClientFactory> factories = new ArrayList<>();
-    for (LivyClientFactory f : CLIENT_FACTORY_LOADER) {
-      factories.add(f);
-    }
-    return factories;
-  }
-
-  private static final List<LivyClientFactory> CLIENT_FACTORIES = getLivyClientFactories();
 
   private final Properties config;
 
@@ -133,11 +118,14 @@ public final class LivyClientBuilder {
     }
 
     LivyClient client = null;
-    if (CLIENT_FACTORIES.isEmpty()) {
+    ServiceLoader<LivyClientFactory> loader = ServiceLoader.load(LivyClientFactory.class,
+      classLoader());
+    if (!loader.iterator().hasNext()) {
       throw new IllegalStateException("No LivyClientFactory implementation was found.");
     }
 
-    for (LivyClientFactory factory : CLIENT_FACTORIES) {
+    Exception error = null;
+    for (LivyClientFactory factory : loader) {
       try {
         client = factory.createClient(uri, config);
       } catch (Exception e) {
@@ -170,10 +158,10 @@ public final class LivyClientBuilder {
     return client;
   }
 
-  private static ClassLoader classLoader() {
+  private ClassLoader classLoader() {
     ClassLoader cl = Thread.currentThread().getContextClassLoader();
     if (cl == null) {
-      cl = LivyClientBuilder.class.getClassLoader();
+      cl = getClass().getClassLoader();
     }
     return cl;
   }

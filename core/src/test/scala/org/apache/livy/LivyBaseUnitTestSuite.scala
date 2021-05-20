@@ -17,18 +17,18 @@
 
 package org.apache.livy
 
-import org.scalatest.{Outcome, TestSuite}
+import org.scalatest.{Outcome, Suite}
 
-trait LivyBaseUnitTestSuite extends TestSuite with Logging {
+trait LivyBaseUnitTestSuite extends Suite with Logging {
 
-  protected override def withFixture(test: NoArgTest): Outcome = {
-    val testName = test.name
-    val suiteName = this.getClass.getName
-    try {
-      info(s"\n\n==== TEST OUTPUT FOR $suiteName: '$testName' ====\n")
-      test()
-    } finally {
-      info(s"\n\n==== FINISHED $suiteName: '$testName' ====\n")
-    }
-  }
+//  protected override def withFixture(test: NoArgTest): Outcome = {
+//    val testName = test.name
+//    val suiteName = this.getClass.getName
+//    try {
+//      info(s"\n\n==== TEST OUTPUT FOR $suiteName: '$testName' ====\n")
+//      test()
+//    } finally {
+//      info(s"\n\n==== FINISHED $suiteName: '$testName' ====\n")
+//    }
+//  }
 }

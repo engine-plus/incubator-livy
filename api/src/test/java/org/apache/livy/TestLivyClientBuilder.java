@@ -78,12 +78,4 @@ public class TestLivyClientBuilder {
     }
   }
 
-  @Test
-  public void testSinglenessOfClientFactory() throws Exception {
-    LivyClient client1 = new LivyClientBuilder().build();
-    assertTrue(client1 instanceof TestClientFactory.Client);
-    LivyClient client2 = new LivyClientBuilder().build();
-    assertTrue(client2 instanceof TestClientFactory.Client);
-    assertEquals(1L, TestClientFactory.getInstanceCount());
-  }
 }

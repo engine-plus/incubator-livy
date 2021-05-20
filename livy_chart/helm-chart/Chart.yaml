@@ -1,0 +1,8 @@
+apiVersion: v1
+name: livy
+version: 0.1.0
+appVersion: v0.7.0-incubating-SNAPSHOT
+description: Apache Livy server to run Spark on Kubernetes
+keywords:
+  - livy
+  - spark

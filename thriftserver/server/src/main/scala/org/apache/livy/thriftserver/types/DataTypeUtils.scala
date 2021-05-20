@@ -17,7 +17,7 @@
 
 package org.apache.livy.thriftserver.types
 
-import org.json4s.{DefaultFormats, JValue, StringInput}
+import org.json4s.{DefaultFormats, JValue}
 import org.json4s.JsonAST.{JObject, JString}
 import org.json4s.jackson.JsonMethods.parse
 
@@ -52,7 +52,6 @@ object DataTypeUtils {
     }
   }
 
-
   /**
    * Converts a JSON representing the Spark schema (the one returned by `df.schema.json`) into
    * a [[Schema]] instance.
@@ -61,7 +60,7 @@ object DataTypeUtils {
    * @return a [[Schema]] representing the schema provided as input
    */
   def schemaFromSparkJson(sparkJson: String): Schema = {
-    val schema = parse(StringInput(sparkJson), false) \ "fields"
+    val schema = parse(sparkJson) \ "fields"
     val fields = schema.children.map { field =>
       val name = (field \ "name").extract[String]
       val hiveType = toFieldType(field \ "type")

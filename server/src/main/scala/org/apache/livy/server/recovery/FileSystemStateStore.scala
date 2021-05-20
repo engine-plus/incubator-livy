@@ -44,8 +44,7 @@ class FileSystemStateStore(
 
   private val fsUri = {
     val fsPath = livyConf.get(LivyConf.RECOVERY_STATE_STORE_URL)
-    require(fsPath != null && !fsPath.isEmpty,
-      s"Please config ${LivyConf.RECOVERY_STATE_STORE_URL.key}.")
+    require(!fsPath.isEmpty, s"Please config ${LivyConf.RECOVERY_STATE_STORE_URL.key}.")
     new URI(fsPath)
   }
 
@@ -126,11 +125,7 @@ class FileSystemStateStore(
   }
 
   override def remove(key: String): Unit = {
-    try {
-      fileContext.delete(absPath(key), false)
-    } catch {
-      case _: FileNotFoundException => warn(s"Failed to remove non-existed file: ${key}")
-    }
+    fileContext.delete(absPath(key), false)
   }
 
   private def absPath(key: String): Path = new Path(fsUri.getPath(), key)

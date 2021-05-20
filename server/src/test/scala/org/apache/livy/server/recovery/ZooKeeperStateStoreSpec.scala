@@ -26,7 +26,7 @@ import org.apache.zookeeper.data.Stat
 import org.mockito.Mockito._
 import org.scalatest.FunSpec
 import org.scalatest.Matchers._
-import org.scalatestplus.mockito.MockitoSugar.mock
+import org.scalatest.mock.MockitoSugar.mock
 
 import org.apache.livy.{LivyBaseUnitTestSuite, LivyConf}
 
@@ -34,7 +34,6 @@ class ZooKeeperStateStoreSpec extends FunSpec with LivyBaseUnitTestSuite {
   describe("ZooKeeperStateStore") {
     case class TestFixture(stateStore: ZooKeeperStateStore, curatorClient: CuratorFramework)
     val conf = new LivyConf()
-    conf.set(LivyConf.RECOVERY_STATE_STORE, "zookeeper")
     conf.set(LivyConf.RECOVERY_STATE_STORE_URL, "host")
     val key = "key"
     val prefixedKey = s"/livy/$key"
@@ -43,9 +42,7 @@ class ZooKeeperStateStoreSpec extends FunSpec with LivyBaseUnitTestSuite {
       val curatorClient = mock[CuratorFramework]
       when(curatorClient.getUnhandledErrorListenable())
         .thenReturn(mock[Listenable[UnhandledErrorListener]])
-      val zkManager = new ZooKeeperManager(conf, Some(curatorClient))
-      zkManager.start()
-      val stateStore = new ZooKeeperStateStore(conf, zkManager)
+      val stateStore = new ZooKeeperStateStore(conf, Some(curatorClient))
       testBody(TestFixture(stateStore, curatorClient))
     }
 
@@ -60,11 +57,11 @@ class ZooKeeperStateStoreSpec extends FunSpec with LivyBaseUnitTestSuite {
     it("should throw on bad config") {
       withMock { f =>
         val conf = new LivyConf()
-        intercept[IllegalArgumentException] { new ZooKeeperManager(conf) }
+        intercept[IllegalArgumentException] { new ZooKeeperStateStore(conf) }
 
         conf.set(LivyConf.RECOVERY_STATE_STORE_URL, "host")
-        conf.set(LivyConf.ZK_RETRY_POLICY, "bad")
-        intercept[IllegalArgumentException] { new ZooKeeperManager(conf) }
+        conf.set(ZooKeeperStateStore.ZK_RETRY_CONF, "bad")
+        intercept[IllegalArgumentException] { new ZooKeeperStateStore(conf) }
       }
     }
 
@@ -99,12 +96,12 @@ class ZooKeeperStateStoreSpec extends FunSpec with LivyBaseUnitTestSuite {
     }
 
     it("get should retrieve retry policy configs") {
-      conf.set(LivyConf.ZK_RETRY_POLICY, "11,77")
+      conf.set(org.apache.livy.server.recovery.ZooKeeperStateStore.ZK_RETRY_CONF, "11,77")
         withMock { f =>
         mockExistsBuilder(f.curatorClient, true)
 
-        f.stateStore.getZooKeeperManager().retryPolicy should not be null
-        f.stateStore.getZooKeeperManager().retryPolicy.getN shouldBe 11
+        f.stateStore.retryPolicy should not be null
+        f.stateStore.retryPolicy.getN shouldBe 11
       }
     }
 

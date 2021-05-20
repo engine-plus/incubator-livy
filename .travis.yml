@@ -16,23 +16,27 @@
 #
 
 sudo: required
-dist: xenial
+dist: trusty
 language: scala
-  - 2.11.12
+  - 2.12.12
 
 matrix:
   include:
-  - name: "Spark 2.4 Unit Tests"
+  - name: "Spark 2.2 Unit Tests"
     env: MVN_FLAG='-Pthriftserver -DskipITs'
-  - name: "Spark 2.4 ITs"
+  - name: "Spark 2.2 ITs"
     env: MVN_FLAG='-Pthriftserver -DskipTests'
-  - name: "Spark 3.0 Unit Tests"
-    env: MVN_FLAG='-Pthriftserver -Pspark-3.0 -DskipITs'
-  - name: "Spark 3.0 ITs"
-    env: MVN_FLAG='-Pthriftserver -Pspark-3.0 -DskipTests'
+  - name: "Spark 2.3 Unit Tests"
+    env: MVN_FLAG='-Pspark-2.3 -Pthriftserver -DskipITs'
+  - name: "Spark 2.3 ITs"
+    env: MVN_FLAG='-Pspark-2.3 -Pthriftserver -DskipTests'
+  - name: "Spark 2.4 Unit Tests"
+    env: MVN_FLAG='-Pspark-2.4 -Pthriftserver -DskipITs'
+  - name: "Spark 2.4 ITs"
+    env: MVN_FLAG='-Pspark-2.4 -Pthriftserver -DskipTests'
 
 jdk:
-  - openjdk8
+  - oraclejdk8
 
 cache:
   pip: true
@@ -40,9 +44,7 @@ cache:
     - $HOME/.m2
 
 install:
-  - sudo add-apt-repository 'deb https://cloud.r-project.org/bin/linux/ubuntu xenial-cran35/'
-  - sudo apt-get update
-  - sudo apt-get -qq --allow-unauthenticated install r-base
+  - sudo apt-get -qq install r-base
   - sudo apt-get -qq install python3-pip python-dev
   - sudo apt-get -qq install libkrb5-dev
   - sudo apt-get -qq remove python-setuptools

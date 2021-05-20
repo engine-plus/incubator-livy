@@ -31,6 +31,7 @@ import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.util.{Random, Try}
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.google.common.annotations.VisibleForTesting
 import org.apache.hadoop.fs.Path
 import org.apache.spark.launcher.SparkLauncher
 
@@ -85,14 +86,25 @@ object InteractiveSession extends Logging {
       val builderProperties = prepareBuilderProp(conf, request.kind, livyConf)
 
       val userOpts: Map[String, Option[String]] = Map(
-        "spark.driver.cores" -> request.driverCores.map(_.toString),
         SparkLauncher.DRIVER_MEMORY -> request.driverMemory.map(_.toString),
-        SparkLauncher.EXECUTOR_CORES -> request.executorCores.map(_.toString),
         SparkLauncher.EXECUTOR_MEMORY -> request.executorMemory.map(_.toString),
         "spark.executor.instances" -> request.numExecutors.map(_.toString),
-        "spark.app.name" -> request.name.map(_.toString),
-        "spark.yarn.queue" -> request.queue
-      )
+        "spark.app.name" -> request.name.map(_.toString)
+      ) ++ {
+        if (livyConf.isRunningOnKubernetes()) {
+          Map(
+            "spark.kubernetes.executor.request.cores" -> request.executorCores.map(_.toString),
+            "spark.kubernetes.executor.limit.cores" -> request.executorCores.map(_.toString),
+            "spark.kubernetes.driver.limit.cores" -> request.driverCores.map(_.toString)
+          )
+        } else {
+          Map(
+            SparkLauncher.EXECUTOR_CORES -> request.executorCores.map(_.toString),
+            "spark.driver.cores" -> request.driverCores.map(_.toString),
+            "spark.yarn.queue" -> request.queue
+          )
+        }
+      }
 
       userOpts.foreach { case (key, opt) =>
         opt.foreach { value => builderProperties.put(key, value) }
@@ -207,8 +219,6 @@ object InteractiveSession extends Logging {
           case 2 | 3 =>
             if (new File(sparkHome, "RELEASE").isFile) {
               new File(sparkHome, "jars")
-            } else if (new File(sparkHome, "assembly/target/scala-2.11/jars").isDirectory) {
-              new File(sparkHome, "assembly/target/scala-2.11/jars")
             } else {
               new File(sparkHome, "assembly/target/scala-2.12/jars")
             }
@@ -401,12 +411,7 @@ class InteractiveSession(
     app = mockApp.orElse {
       val driverProcess = client.flatMap { c => Option(c.getDriverProcess) }
         .map(new LineBufferedProcess(_, livyConf.getInt(LivyConf.SPARK_LOGS_SIZE)))
-
-      if (livyConf.isRunningOnYarn() || driverProcess.isDefined) {
-        Some(SparkApp.create(appTag, appId, driverProcess, livyConf, Some(this)))
-      } else {
-        None
-      }
+      driverProcess.map { _ => SparkApp.create(appTag, appId, driverProcess, livyConf, Some(this)) }
     }
 
     if (client.isEmpty) {
@@ -481,6 +486,7 @@ class InteractiveSession(
       transition(SessionState.ShuttingDown)
       sessionStore.remove(RECOVERY_SESSION_TYPE, id)
       client.foreach { _.stop(true) }
+      if(livyConf.isRunningOnKubernetes()) app.foreach(_.kill())
     } catch {
       case _: Exception =>
         app.foreach {
@@ -584,17 +590,6 @@ class InteractiveSession(
     // Since these 2 transitions are triggered by different threads, there's a race condition.
     // Make sure we won't transit from dead to error state.
     val areSameStates = serverSideState.getClass() == newState.getClass()
-
-    if (!areSameStates) {
-      newState match {
-        case _: SessionState.Killed | _: SessionState.Dead =>
-          sessionStore.remove(RECOVERY_SESSION_TYPE, id)
-        case SessionState.ShuttingDown =>
-          sessionStore.remove(RECOVERY_SESSION_TYPE, id)
-        case _ =>
-      }
-    }
-
     val transitFromInactiveToActive = !serverSideState.isActive && newState.isActive
     if (!areSameStates && !transitFromInactiveToActive) {
       debug(s"$this session state change from ${serverSideState} to $newState")
